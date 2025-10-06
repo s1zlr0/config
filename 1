@@ -1,0 +1,192 @@
+import tkinter as tk
+from tkinter import scrolledtext, messagebox
+import os
+import sys
+import platform
+
+
+class ShellEmulator:
+    def __init__(self, root):
+        self.root = root
+        self.current_dir = os.getcwd()
+
+        # Получаем реальные данные ОС
+        username = os.getenv('USERNAME') or os.getenv('USER') or 'user'
+        hostname = platform.node()
+
+        # Устанавливаем заголовок окна
+        self.root.title(f"Эмулятор - [{username}@{hostname}]")
+        self.root.geometry("800x600")
+
+        # Создаем текстовую область для вывода
+        self.output_area = scrolledtext.ScrolledText(
+            root,
+            wrap=tk.WORD,
+            bg='black',
+            fg='white',
+            insertbackground='white',
+            font=('Courier New', 10)
+        )
+        self.output_area.pack(expand=True, fill='both', padx=5, pady=5)
+        self.output_area.config(state=tk.DISABLED)
+
+        # Создаем поле ввода
+        input_frame = tk.Frame(root)
+        input_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        self.prompt_label = tk.Label(
+            input_frame,
+            text=f"[{username}@{hostname}] $ ",
+            bg='black',
+            fg='green',
+            font=('Courier New', 10)
+        )
+        self.prompt_label.pack(side=tk.LEFT)
+
+        self.input_entry = tk.Entry(
+            input_frame,
+            bg='black',
+            fg='white',
+            insertbackground='white',
+            font=('Courier New', 10)
+        )
+        self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.input_entry.bind('<Return>', self.execute_command)
+        self.input_entry.focus()
+
+        # Добавляем приветственное сообщение
+        self.print_output("Добро пожаловать в эмулятор командной строки!\n")
+        self.print_output("Доступные команды: ls, cd, exit\n")
+        self.print_output("Введите 'exit' для выхода.\n")
+
+    def print_output(self, text):
+        """Вывод текста в область вывода"""
+        self.output_area.config(state=tk.NORMAL)
+        self.output_area.insert(tk.END, text)
+        self.output_area.see(tk.END)
+        self.output_area.config(state=tk.DISABLED)
+
+    def parse_command(self, command_string):
+        """Парсер команд - разделяет ввод на команду и аргументы по пробелам"""
+        parts = command_string.strip().split()
+        if not parts:
+            return "", []
+        command = parts[0]
+        args = parts[1:]
+        return command, args
+
+    def execute_command(self, event):
+        """Обработчик выполнения команд"""
+        command_string = self.input_entry.get().strip()
+        self.input_entry.delete(0, tk.END)
+
+        # Выводим введенную команду
+        self.print_output(f"$ {command_string}\n")
+
+        # Парсим команду
+        command, args = self.parse_command(command_string)
+
+        if not command:
+            return
+
+        # Обрабатываем команды
+        if command == "exit":
+            self.cmd_exit(args)
+        elif command == "ls":
+            self.cmd_ls(args)
+        elif command == "cd":
+            self.cmd_cd(args)
+        else:
+            self.print_output(f"Ошибка: неизвестная команда '{command}'\n")
+
+    def cmd_exit(self, args):
+        """Команда exit - выход из приложения"""
+        self.print_output("Выход из эмулятора...\n")
+        self.root.quit()
+
+    def cmd_ls(self, args):
+        """Команда ls - заглушка"""
+        self.print_output("Команда: ls\n")
+        if args:
+            self.print_output(f"Аргументы: {args}\n")
+        else:
+            self.print_output("Аргументы: отсутствуют\n")
+        self.print_output("(заглушка) Содержимое текущей директории\n")
+
+    def cmd_cd(self, args):
+        """Команда cd - заглушка"""
+        self.print_output("Команда: cd\n")
+        if args:
+            self.print_output(f"Аргументы: {args}\n")
+            if len(args) > 1:
+                self.print_output("Ошибка: слишком много аргументов для команды 'cd'\n")
+            else:
+                self.print_output(f"(заглушка) Смена директории на: {args[0]}\n")
+        else:
+            self.print_output("Аргументы: отсутствуют\n")
+            self.print_output("(заглушка) Возврат в домашнюю директорию\n")
+
+
+def demonstrate_features():
+    """Демонстрация работы эмулятора"""
+    print("=== ДЕМОНСТРАЦИЯ РАБОТЫ ЭМУЛЯТОРА КОМАНДНОЙ СТРОКИ ===\n")
+
+    # Получаем реальные данные ОС для демонстрации
+    username = os.getenv('USERNAME') or os.getenv('USER') or 'user'
+    hostname = platform.node()
+
+    print(f"1. Заголовок окна: 'Эмулятор - [{username}@{hostname}]'")
+    print("2. Интерфейс: черный фон, зеленый промпт, белый текст")
+    print("3. Доступные команды: ls, cd, exit")
+    print("4. Тестирование команд:\n")
+
+    test_cases = [
+        ("ls", "Вывод имени команды и аргументов + сообщение-заглушка"),
+        ("ls -l -a", "Вывод команды с аргументами + сообщение-заглушка"),
+        ("cd /home", "Смена директории (заглушка) с одним аргументом"),
+        ("cd", "Возврат в домашнюю директорию (заглушка)"),
+        ("cd too many arguments", "Ошибка: слишком много аргументов"),
+        ("unknown_command", "Ошибка: неизвестная команда"),
+        ("exit", "Выход из приложения")
+    ]
+
+    print("Ожидаемое поведение для команд:")
+    for i, (cmd, description) in enumerate(test_cases, 1):
+        print(f"   {i}. '{cmd}': {description}")
+
+    print("\n" + "=" * 60)
+    print("Для запуска эмулятора введите: python shell_emulator.py --gui")
+    print("Для просмотра этой демонстрации: python shell_emulator.py --demo")
+    print("=" * 60)
+
+
+def run_emulator():
+    """Запуск GUI эмулятора"""
+    root = tk.Tk()
+    app = ShellEmulator(root)
+    root.mainloop()
+
+
+def main():
+    """Основная функция с обработкой аргументов командной строки"""
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--demo":
+            demonstrate_features()
+        elif sys.argv[1] == "--gui":
+            run_emulator()
+        elif sys.argv[1] == "--help" or sys.argv[1] == "-h":
+            print("Использование:")
+            print("  python shell_emulator.py          # Запуск эмулятора (по умолчанию)")
+            print("  python shell_emulator.py --gui    # Запуск GUI эмулятора")
+            print("  python shell_emulator.py --demo   # Показать демонстрацию")
+            print("  python shell_emulator.py --help   # Показать эту справку")
+        else:
+            print(f"Неизвестный аргумент: {sys.argv[1]}")
+            print("Используйте --help для просмотра справки")
+    else:
+        # По умолчанию запускаем GUI
+        run_emulator()
+
+
+if __name__ == "__main__":
+    main()
