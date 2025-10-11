@@ -1,0 +1,232 @@
+import tkinter as tk
+from tkinter import scrolledtext, messagebox
+import os
+import sys
+import platform
+import argparse
+import time
+
+class ShellEmulator:
+    def __init__(self, root, vfs_path=None, startup_script=None):
+        self.root = root
+        self.current_dir = os.getcwd()
+        self.vfs_path = vfs_path or os.path.join(os.getcwd(), "vfs_root")
+        self.startup_script = startup_script
+        
+        # Создаем VFS директорию если не существует
+        os.makedirs(self.vfs_path, exist_ok=True)
+        
+        # Получаем реальные данные ОС
+        username = os.getenv('USERNAME') or os.getenv('USER') or 'user'
+        hostname = platform.node()
+        
+        # Устанавливаем заголовок окна С ИМЕНЕМ VFS
+        self.root.title(f"Эмулятор VFS - [{username}@{hostname}]")
+        self.root.geometry("800x600")
+        
+        # Создаем текстовую область для вывода
+        self.output_area = scrolledtext.ScrolledText(
+            root, 
+            wrap=tk.WORD, 
+            bg='black', 
+            fg='white', 
+            insertbackground='white',
+            font=('Courier New', 10)
+        )
+        self.output_area.pack(expand=True, fill='both', padx=5, pady=5)
+        self.output_area.config(state=tk.DISABLED)
+        
+        # Создаем поле ввода
+        input_frame = tk.Frame(root)
+        input_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Обновляем промпт с именем VFS
+        self.prompt_label = tk.Label(
+            input_frame, 
+            text=f"VFS [{username}@{hostname}] $ ", 
+            bg='black', 
+            fg='green',
+            font=('Courier New', 10)
+        )
+        self.prompt_label.pack(side=tk.LEFT)
+        
+        self.input_entry = tk.Entry(
+            input_frame, 
+            bg='black', 
+            fg='white',
+            insertbackground='white',
+            font=('Courier New', 10)
+        )
+        self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.input_entry.bind('<Return>', self.execute_command)
+        self.input_entry.focus()
+        
+        # Отладочный вывод параметров
+        self.print_output("=== ДЕБАГ ИНФОРМАЦИЯ ===\n")
+        self.print_output(f"VFS путь: {self.vfs_path}\n")
+        self.print_output(f"Стартовый скрипт: {self.startup_script}\n")
+        self.print_output(f"Текущая директория: {self.current_dir}\n")
+        self.print_output("=======================\n\n")
+        
+        # Запускаем стартовый скрипт если указан
+        if self.startup_script and os.path.exists(self.startup_script):
+            self.print_output(f"Запуск стартового скрипта: {self.startup_script}\n")
+            self.execute_script(self.startup_script)
+        else:
+            self.print_output("Добро пожаловать в эмулятор командной строки VFS!\n")
+            self.print_output("Доступные команды: ls, cd, echo, exit\n")
+            self.print_output("Введите 'exit' для выхода.\n")
+    
+    def execute_script(self, script_path):
+        """Выполнение стартового скрипта"""
+        try:
+            with open(script_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            
+            for line in lines:
+                line = line.strip()
+                # Пропускаем пустые строки и комментарии
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Имитируем ввод пользователя
+                self.print_output(f"$ {line}\n")
+                self.root.update()
+                time.sleep(0.5)  # Задержка для наглядности
+                
+                # Выполняем команду
+                command, args = self.parse_command(line)
+                self.process_command(command, args)
+                
+        except Exception as e:
+            self.print_output(f"Ошибка выполнения скрипта: {e}\n")
+        
+    def print_output(self, text):
+        """Вывод текста в область вывода"""
+        self.output_area.config(state=tk.NORMAL)
+        self.output_area.insert(tk.END, text)
+        self.output_area.see(tk.END)
+        self.output_area.config(state=tk.DISABLED)
+        self.root.update()
+        
+    def parse_command(self, command_string):
+        """Парсер команд - разделяет ввод на команду и аргументы по пробелам"""
+        parts = command_string.strip().split()
+        if not parts:
+            return "", []
+        command = parts[0]
+        args = parts[1:]
+        return command, args
+    
+    def process_command(self, command, args):
+        """Обработка команды без вывода ввода"""
+        if not command:
+            return
+            
+        if command == "exit":
+            self.cmd_exit(args)
+        elif command == "ls":
+            self.cmd_ls(args)
+        elif command == "cd":
+            self.cmd_cd(args)
+        elif command == "echo":
+            self.cmd_echo(args)
+        else:
+            self.print_output(f"Ошибка: неизвестная команда '{command}'\n")
+        
+    def execute_command(self, event):
+        """Обработчик выполнения команд из интерфейса"""
+        command_string = self.input_entry.get().strip()
+        self.input_entry.delete(0, tk.END)
+        
+        # Выводим введенную команду
+        self.print_output(f"$ {command_string}\n")
+        
+        # Парсим команду
+        command, args = self.parse_command(command_string)
+        self.process_command(command, args)
+            
+    def cmd_exit(self, args):
+        """Команда exit - выход из приложения"""
+        self.print_output("Выход из эмулятора VFS...\n")
+        self.root.quit()
+        
+    def cmd_ls(self, args):
+        """Команда ls - ЗАГЛУШКА"""
+        self.print_output("Команда: ls\n")
+        if args:
+            self.print_output(f"Аргументы: {args}\n")
+        else:
+            self.print_output("Аргументы: отсутствуют\n")
+        self.print_output("(заглушка) Содержимое текущей директории VFS\n")
+        
+    def cmd_cd(self, args):
+        """Команда cd - ЗАГЛУШКА"""
+        self.print_output("Команда: cd\n")
+        if args:
+            self.print_output(f"Аргументы: {args}\n")
+            if len(args) > 1:
+                self.print_output("Ошибка: слишком много аргументов для команды 'cd'\n")
+            else:
+                self.print_output(f"(заглушка) Смена директории VFS на: {args[0]}\n")
+        else:
+            self.print_output("Аргументы: отсутствуют\n")
+            self.print_output("(заглушка) Возврат в домашнюю директорию VFS\n")
+        
+    def cmd_echo(self, args):
+        """Команда echo - вывод текста"""
+        self.print_output("Команда: echo\n")
+        if args:
+            text = ' '.join(args)
+            self.print_output(f"{text}\n")
+        else:
+            self.print_output("\n")
+
+def parse_arguments():
+    """Парсинг аргументов командной строки"""
+    parser = argparse.ArgumentParser(description='Эмулятор командной строки VFS')
+    parser.add_argument('--vfs-path', type=str, help='Путь к физическому расположению VFS')
+    parser.add_argument('--startup-script', type=str, help='Путь к стартовому скрипту')
+    parser.add_argument('--demo', action='store_true', help='Показать демонстрацию')
+    parser.add_argument('--gui', action='store_true', help='Запуск GUI эмулятора')
+    
+    return parser.parse_args()
+
+def demonstrate_features():
+    """Демонстрация работы эмулятора"""
+    print("=== ДЕМОНСТРАЦИЯ РАБОТЫ ЭМУЛЯТОРА VFS ===\n")
+    
+    username = os.getenv('USERNAME') or os.getenv('USER') or 'user'
+    hostname = platform.node()
+    
+    print(f"1. Заголовок окна: 'Эмулятор VFS - [{username}@{hostname}]'")
+    print("2. Параметры командной строки:")
+    print("   --vfs-path <path>    - путь к VFS директории")
+    print("   --startup-script <path> - путь к стартовому скрипту")
+    print("   --demo               - показать эту демонстрацию")
+    print("   --gui                - запуск GUI")
+    print("\n3. Примеры использования:")
+    print("   python shell_emulator.py --vfs-path ./my_vfs --startup-script init.vfs")
+    print("   python shell_emulator.py --demo")
+    print("   python shell_emulator.py --gui")
+    
+    print("\n4. Доступные команды: ls (заглушка), cd (заглушка), echo, exit")
+
+def run_emulator():
+    """Запуск GUI эмулятора с аргументами"""
+    args = parse_arguments()
+    
+    if args.demo:
+        demonstrate_features()
+        return
+    
+    root = tk.Tk()
+    app = ShellEmulator(root, args.vfs_path, args.startup_script)
+    root.mainloop()
+
+def main():
+    """Основная функция"""
+    run_emulator()
+
+if __name__ == "__main__":
+    main()
