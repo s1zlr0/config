@@ -55,7 +55,7 @@ print_output(text)
 
 Обработчики команд
 cmd_exit(args)
-3. Описание команд для сборки проекта и запуска тестов
+
 Завершение работы эмулятора
 
 Использование: exit
@@ -76,12 +76,6 @@ cmd_cd(args) - ЗАГЛУШКА
 
 Валидация количества аргументов
 
-cmd_echo(args)
-
-Вывод текста в консоль
-
-Использование: echo [текст]
-
 Параметры командной строки
 --vfs-path <путь>
 
@@ -92,3 +86,10 @@ cmd_echo(args)
 --startup-script <путь>
 
 Задает путь к скрипту для автоматического выполнения при запуске
+3. Описание команд для сборки проекта и запуска тестов
+Проект не требует сборки
+Для запуска:
+ python config1.2.py --startup-script script_path.vfs
+ python C:\Users\Administrator\PyCharmMiscProject\config1.2.py --startup-script C:\Users\Administrator\PyCharmMiscProject\script_path.vfs
+4. Примеры использования
+<img width="1362" height="941" alt="image" src="https://github.com/user-attachments/assets/5f1314ff-5730-4d5e-b1a3-0a179d18eed9" />
