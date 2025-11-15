@@ -1,0 +1,5 @@
+package_name: "A"
+repository_url: "test.yaml"
+test_mode: true
+ascii_tree: true
+max_depth: 3
