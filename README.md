@@ -7,4 +7,5 @@
 <img width="1002" height="1497" alt="image" src="https://github.com/user-attachments/assets/06f5c1cb-6891-43ac-9b26-d3021bf2bb8d" />
 
 Тестовый режим
+
 <img width="741" height="1359" alt="image" src="https://github.com/user-attachments/assets/f84ee02f-80db-4f2a-b662-f288f790a57a" />
