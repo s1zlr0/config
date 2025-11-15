@@ -64,3 +64,32 @@
 - **`get_load_order()`**: Реализует алгоритм Кана для топологической сортировки графа
 - **`compare_with_maven()`**: Генерирует команды Maven для сравнения и анализирует расхождения
 
+3. Описание команд для сборки проекта и запуска тестов.
+Базовый запуск с конфигурационным файлом
+python config2.5.py
+Конфигурационный файл config.yaml
+package_name: "com.fasterxml.jackson.core:jackson-databind"
+repository_url: "https://repo1.maven.org/maven2"
+test_mode: false
+ascii_tree: true
+max_depth: 2
+4. Примеры использования.
+Пакет jackson
+<img width="2744" height="907" alt="image" src="https://github.com/user-attachments/assets/e285c04c-0669-4fe5-9706-d2f5991349a7" />
+
+<img width="1574" height="1150" alt="image" src="https://github.com/user-attachments/assets/fd3c0eea-1701-4ea2-b411-74cfb7fe135d" />
+
+Пакет commons
+<img width="2661" height="674" alt="image" src="https://github.com/user-attachments/assets/e8c03d78-741c-49fd-a76c-74154e311fdb" />
+
+<img width="1665" height="1180" alt="image" src="https://github.com/user-attachments/assets/d5fa3de5-c883-4f69-82b8-c815681e3761" />
+
+Пакет spring-core
+<img width="2664" height="826" alt="image" src="https://github.com/user-attachments/assets/49d3231d-f26b-4d0b-a4e8-9ee39b4c6d2b" />
+
+<img width="1383" height="1174" alt="image" src="https://github.com/user-attachments/assets/a17756de-f487-42cf-a6f6-0a9d6b1f895c" />
+
+Тестовый файл
+<img width="2592" height="1028" alt="image" src="https://github.com/user-attachments/assets/b1b40093-c7bb-4733-8b7f-226d528eef8c" />
+
+<img width="413" height="1056" alt="image" src="https://github.com/user-attachments/assets/ac41abe0-81f8-450c-b1a1-e2df71327171" />
