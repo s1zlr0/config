@@ -4,6 +4,7 @@ import os
 import urllib.request
 import xml.etree.ElementTree as ET
 import ssl
+import argparse
 from typing import List, Dict, Set
 from collections import deque, defaultdict
 import tkinter as tk
@@ -15,23 +16,44 @@ ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Maven Dependency Analyzer')
+    parser.add_argument('config_file', 
+                       nargs='?',
+                       default='config_test.yaml',
+                       help='Path to config file (default: config_test.yaml)')
+    parser.add_argument('--list', '-l', action='store_true',
+                       help='List available config files')
+    return parser.parse_args()
+
+def list_available_configs():
+    configs = [f for f in os.listdir('.') if f.startswith('config_') and f.endswith('.yaml')]
+    if configs:
+        print("Доступные конфигурационные файлы:")
+        for config in configs:
+            print(f"  - {config}")
+    else:
+        print("Конфигурационные файлы не найдены")
+    return configs
+
 class MavenDependencyAnalyzer:
-    def __init__(self, config: Dict):
-        self.config = config
+    def __init__(self):
+        self.config = {}
         self.test_repo_data = None
         self.dependency_graph = {}
         
-    def load_config(self) -> Dict:
+    def load_config(self, config_file: str) -> Dict:
         try:
-            with open('config.yaml', 'r') as file:
+            with open(config_file, 'r') as file:
                 config = yaml.safe_load(file)
                 if config is None:
-                    raise Exception("config.yaml пустой")
+                    raise Exception(f"{config_file} пустой")
+                print(f"Загружена конфигурация из: {config_file}")
                 return config
         except FileNotFoundError:
-            raise Exception("Файл config.yaml не найден")
+            raise Exception(f"Файл {config_file} не найден")
         except yaml.YAMLError as e:
-            raise Exception(f"Ошибка в формате YAML: {e}")
+            raise Exception(f"Ошибка в формате YAML в {config_file}: {e}")
     
     def validate_config(self, config: Dict) -> bool:
         required_fields = {
@@ -54,6 +76,8 @@ class MavenDependencyAnalyzer:
         
         if not config['package_name'].strip():
             raise Exception("package_name не может быть пустым")
+        
+        # Для тестового режима проверяем существование файла репозитория
         if config['test_mode'] and not config['repository_url'].startswith(('http://', 'https://')):
             repo_path = config['repository_url']
             if not os.path.exists(repo_path):
@@ -70,9 +94,11 @@ class MavenDependencyAnalyzer:
             with open(repo_path, 'r') as f:
                 self.test_repo_data = yaml.safe_load(f)
             
+            # Валидация структуры тестового репозитория
             if not isinstance(self.test_repo_data, dict):
                 raise Exception("Тестовый репозиторий должен быть в формате словаря")
                 
+            # Проверяем что все пакеты - большие латинские буквы
             for package_name in self.test_repo_data.keys():
                 if not (isinstance(package_name, str) and len(package_name) == 1 and package_name.isupper()):
                     raise Exception(f"Пакет '{package_name}' должен быть одной большой латинской буквой")
@@ -99,17 +125,13 @@ class MavenDependencyAnalyzer:
         visited = set()
         dependency_graph = {}
         
-        print("\nХод анализа:")
-        
         while queue:
             current_package, depth = queue.popleft()
             
             if current_package in visited:
-                print(f"  Пропускаем {current_package} (уже посещен)")
                 continue
                 
             visited.add(current_package)
-            print(f"  Глубина {depth}: анализируем {current_package}")
             
             if depth < max_depth:
                 dependencies = self.get_package_dependencies(current_package)
@@ -120,7 +142,6 @@ class MavenDependencyAnalyzer:
                         queue.append((dep, depth + 1))
             else:
                 dependency_graph[current_package] = []
-                print(f"    Достигнута максимальная глубина {max_depth}")
         
         self.dependency_graph = dependency_graph
         return dependency_graph
@@ -137,7 +158,6 @@ class MavenDependencyAnalyzer:
             test_data = self.load_test_repository()
             return test_data.get(package_name, [])
         
-        # Резервные тестовые данные (для обратной совместимости)
         test_data_maven = {
             "org.springframework:spring-core": ["org.springframework:spring-jcl", "commons-logging:commons-logging"],
             "org.springframework:spring-jcl": [],
@@ -305,6 +325,16 @@ class MavenDependencyAnalyzer:
         
         return load_order
 
+    def print_load_order(self):
+        load_order = self.get_load_order()
+        
+        if not load_order:
+            print("Зависимости не найдены")
+            return
+        
+        print(f"\nПОРЯДОК ЗАГРУЗКИ ЗАВИСИМОСТЕЙ:")
+        for i, pkg in enumerate(load_order, 1):
+            print(f"{i}. {pkg}")
 
     def generate_mermaid_graph(self) -> str:
         if not self.dependency_graph:
@@ -331,136 +361,6 @@ class MavenDependencyAnalyzer:
         return "\n".join(mermaid_lines)
 
     def create_tkinter_graph(self):
-        if not self.dependency_graph:
-            print("Нет данных для построения графа")
-            return
-        
-        try:
-            # Создаем главное окно
-            root = tk.Tk()
-            root.title(f"Граф зависимостей: {self.config['package_name']}")
-            root.geometry("1000x700")
-            
-            # Создаем canvas для рисования
-            canvas = tk.Canvas(root, bg="white", scrollregion=(0, 0, 2000, 2000))
-            
-            # Добавляем скроллбары
-            v_scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
-            h_scrollbar = ttk.Scrollbar(root, orient="horizontal", command=canvas.xview)
-            canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
-            
-            # Размещаем элементы
-            canvas.grid(row=0, column=0, sticky="nsew")
-            v_scrollbar.grid(row=0, column=1, sticky="ns")
-            h_scrollbar.grid(row=1, column=0, sticky="ew")
-            
-            root.grid_rowconfigure(0, weight=1)
-            root.grid_columnconfigure(0, weight=1)
-            
-            # Параметры для рисования
-            node_radius = 60
-            level_height = 150
-            node_width = 120
-            node_height = 40
-            
-            # Располагаем узлы графа
-            positions = {}
-            level_nodes = defaultdict(list)
-            
-            # Определяем уровни для каждого узла
-            def calculate_levels():
-                levels = {}
-                queue = deque([(self.config['package_name'], 0)])
-                visited = set()
-                
-                while queue:
-                    node, level = queue.popleft()
-                    if node in visited:
-                        continue
-                    visited.add(node)
-                    levels[node] = level
-                    level_nodes[level].append(node)
-                    
-                    for dep in self.dependency_graph.get(node, []):
-                        if dep not in visited:
-                            queue.append((dep, level + 1))
-                
-                return levels
-            
-            levels = calculate_levels()
-            
-            # Вычисляем позиции для каждого узла
-            x_start = 100
-            y_start = 100
-            
-            for level in sorted(level_nodes.keys()):
-                nodes_in_level = level_nodes[level]
-                level_width = len(nodes_in_level) * (node_width + 50)
-                x_positions = []
-                
-                for i, node in enumerate(nodes_in_level):
-                    x = x_start + (i + 0.5) * (node_width + 50)
-                    y = y_start + level * level_height
-                    positions[node] = (x, y)
-            
-            # Рисуем связи
-            for package, dependencies in self.dependency_graph.items():
-                if package in positions:
-                    x1, y1 = positions[package]
-                    for dep in dependencies:
-                        if dep in positions:
-                            x2, y2 = positions[dep]
-                            canvas.create_line(x1, y1 + node_height/2, x2, y2 - node_height/2, 
-                                            arrow=tk.LAST, arrowshape=(8, 10, 5), width=2, fill="gray")
-            
-            # Рисуем узлы
-            for node, (x, y) in positions.items():
-                # Основной пакет - другой цвет
-                if node == self.config['package_name']:
-                    color = "lightblue"
-                else:
-                    color = "lightgreen"
-                
-                # Рисуем прямоугольник
-                canvas.create_rectangle(x - node_width/2, y - node_height/2, 
-                                      x + node_width/2, y + node_height/2,
-                                      fill=color, outline="black", width=2)
-                
-                # Добавляем текст (обрезаем если слишком длинный)
-                display_text = node
-                if len(node) > 20:
-                    display_text = node[:17] + "..."
-                
-                canvas.create_text(x, y, text=display_text, font=("Arial", 8), width=node_width-10)
-            
-            # Добавляем легенду
-            legend_x = 50
-            legend_y = 50
-            
-            canvas.create_rectangle(legend_x, legend_y, legend_x + 20, legend_y + 20, 
-                                  fill="lightblue", outline="black")
-            canvas.create_text(legend_x + 40, legend_y + 10, text="Основной пакет", 
-                             anchor="w", font=("Arial", 9))
-            
-            canvas.create_rectangle(legend_x + 150, legend_y, legend_x + 170, legend_y + 20, 
-                                  fill="lightgreen", outline="black")
-            canvas.create_text(legend_x + 190, legend_y + 10, text="Зависимости", 
-                             anchor="w", font=("Arial", 9))
-            
-            # Добавляем информацию о графе
-            info_text = f"Всего узлов: {len(positions)} | Всего связей: {sum(len(deps) for deps in self.dependency_graph.values())}"
-            canvas.create_text(500, 30, text=info_text, font=("Arial", 10, "bold"))
-            
-            # Запускаем главный цикл
-            print("\nОткрыто графическое окно с графом зависимостей")
-            print("Закройте окно для продолжения работы программы")
-            root.mainloop()
-            
-        except Exception as e:
-            print(f"Ошибка при создании графического представления: {e}")
-
-    def create_tkinter_graph(self):
-        """Создает графическое представление графа с помощью tkinter"""
         if not self.dependency_graph:
             print("Нет данных для построения графа")
             return
@@ -652,23 +552,23 @@ class MavenDependencyAnalyzer:
         except Exception as e:
             print(f"Ошибка при создании графического представления: {e}")
 
-    def run(self):
-        """Основной метод запуска приложения"""
+    def run(self, config_file: str):
         try:
+            print("Этап 5. Визуализация\n")
             
-            config = self.load_config()
+            config = self.load_config(config_file)
             self.validate_config(config)
             self.config = config
             
             # Особенности тестового режима
             if config['test_mode'] and not config['repository_url'].startswith(('http://', 'https://')):
-                print(f"\nРЕЖИМ: Тестовый репозиторий из файла")
+                print(f"РЕЖИМ: Тестовый репозиторий из файла")
                 print(f"Файл: {config['repository_url']}")
                 self.load_test_repository()
             elif config['test_mode']:
-                print(f"\nРЕЖИМ: Тестовые данные (встроенные)")
+                print(f"РЕЖИМ: Тестовые данные (встроенные)")
             else:
-                print(f"\nРЕЖИМ: Реальный Maven репозиторий")
+                print(f"РЕЖИМ: Реальный Maven репозиторий")
             
             print(f"\nПОСТРОЕНИЕ ГРАФА ЗАВИСИМОСТЕЙ:")
             dependency_graph = self.build_dependency_graph()
@@ -679,10 +579,16 @@ class MavenDependencyAnalyzer:
             elif not dependency_graph:
                 print("Граф зависимостей пуст")
             
+            # Обнаружение циклов
+            cycles = self.detect_cycles(dependency_graph)
+            if cycles:
+                print(f"\nОБНАРУЖЕНЫ ЦИКЛИЧЕСКИЕ ЗАВИСИМОСТИ:")
+                for i, cycle in enumerate(cycles, 1):
+                    print(f"{i}. {' -> '.join(cycle)}")
+            
+            
             # Генерация Mermaid представления
             mermaid_code = self.generate_mermaid_graph()
-            
-            # Сохраняем код в файл .mmd
             mermaid_filename = f"mermaid_{self.config['package_name'].replace(':', '_')}.mmd"
             with open(mermaid_filename, 'w') as f:
                 f.write(mermaid_code)
@@ -700,8 +606,14 @@ class MavenDependencyAnalyzer:
             sys.exit(1)
 
 def main():
-    analyzer = MavenDependencyAnalyzer({})
-    analyzer.run()
+    args = parse_arguments()
+    
+    if args.list:
+        list_available_configs()
+        return
+    
+    analyzer = MavenDependencyAnalyzer()
+    analyzer.run(args.config_file)
 
 if __name__ == "__main__":
     main()
