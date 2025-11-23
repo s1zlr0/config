@@ -4,6 +4,7 @@ import os
 import urllib.request
 import xml.etree.ElementTree as ET
 import ssl
+import argparse
 from typing import List, Dict, Set
 from collections import deque, defaultdict
 
@@ -12,23 +13,44 @@ ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Maven Dependency Analyzer')
+    parser.add_argument('config_file', 
+                       nargs='?',
+                       default='config_test.yaml',
+                       help='Path to config file (default: config_test.yaml)')
+    parser.add_argument('--list', '-l', action='store_true',
+                       help='List available config files')
+    return parser.parse_args()
+
+def list_available_configs():
+    configs = [f for f in os.listdir('.') if f.startswith('config_') and f.endswith('.yaml')]
+    if configs:
+        print("Доступные конфигурационные файлы:")
+        for config in configs:
+            print(f"  - {config}")
+    else:
+        print("Конфигурационные файлы не найдены")
+    return configs
+
 class MavenDependencyAnalyzer:
-    def __init__(self, config: Dict):
-        self.config = config
+    def __init__(self):
+        self.config = {}
         self.test_repo_data = None
         self.dependency_graph = {}
         
-    def load_config(self) -> Dict:
+    def load_config(self, config_file: str) -> Dict:
         try:
-            with open('config.yaml', 'r') as file:
+            with open(config_file, 'r') as file:
                 config = yaml.safe_load(file)
                 if config is None:
-                    raise Exception("config.yaml пустой")
+                    raise Exception(f"{config_file} пустой")
+                print(f"Загружена конфигурация из: {config_file}")
                 return config
         except FileNotFoundError:
-            raise Exception("Файл config.yaml не найден")
+            raise Exception(f"Файл {config_file} не найден")
         except yaml.YAMLError as e:
-            raise Exception(f"Ошибка в формате YAML: {e}")
+            raise Exception(f"Ошибка в формате YAML в {config_file}: {e}")
     
     def validate_config(self, config: Dict) -> bool:
         required_fields = {
@@ -51,7 +73,8 @@ class MavenDependencyAnalyzer:
         
         if not config['package_name'].strip():
             raise Exception("package_name не может быть пустым")
-      
+        
+        # Для тестового режима проверяем существование файла репозитория
         if config['test_mode'] and not config['repository_url'].startswith(('http://', 'https://')):
             repo_path = config['repository_url']
             if not os.path.exists(repo_path):
@@ -68,9 +91,11 @@ class MavenDependencyAnalyzer:
             with open(repo_path, 'r') as f:
                 self.test_repo_data = yaml.safe_load(f)
             
+            # Валидация структуры тестового репозитория
             if not isinstance(self.test_repo_data, dict):
                 raise Exception("Тестовый репозиторий должен быть в формате словаря")
                 
+            # Проверяем что все пакеты - большие латинские буквы
             for package_name in self.test_repo_data.keys():
                 if not (isinstance(package_name, str) and len(package_name) == 1 and package_name.isupper()):
                     raise Exception(f"Пакет '{package_name}' должен быть одной большой латинской буквой")
@@ -87,6 +112,8 @@ class MavenDependencyAnalyzer:
         
         print(f"Построение графа зависимостей для '{start_package}'")
         print(f"Максимальная глубина: {max_depth}")
+        
+        # Для тестового режима проверяем корректность имени пакета
         if self.config['test_mode'] and not self.config['repository_url'].startswith(('http://', 'https://')):
             if not (len(start_package) == 1 and start_package.isupper()):
                 raise Exception(f"В тестовом режиме имя пакета должно быть одной большой латинской буквой, получено: '{start_package}'")
@@ -95,17 +122,13 @@ class MavenDependencyAnalyzer:
         visited = set()
         dependency_graph = {}
         
-        print("\nХод анализа:")
-        
         while queue:
             current_package, depth = queue.popleft()
             
             if current_package in visited:
-                print(f"  Пропускаем {current_package} (уже посещен)")
                 continue
                 
             visited.add(current_package)
-            print(f"  Глубина {depth}: анализируем {current_package}")
             
             if depth < max_depth:
                 dependencies = self.get_package_dependencies(current_package)
@@ -116,13 +139,11 @@ class MavenDependencyAnalyzer:
                         queue.append((dep, depth + 1))
             else:
                 dependency_graph[current_package] = []
-                print(f"    Достигнута максимальная глубина {max_depth}")
         
         self.dependency_graph = dependency_graph
         return dependency_graph
     
     def get_package_dependencies(self, package_name: str) -> List[str]:
-        """Получает зависимости для одного пакета"""
         if self.config['test_mode']:
             return self._get_test_dependencies(package_name)
         else:
@@ -258,7 +279,6 @@ class MavenDependencyAnalyzer:
         
         print_node(self.config['package_name'])
 
-
     def get_load_order(self) -> List[str]:
         if not self.dependency_graph:
             return []
@@ -311,31 +331,44 @@ class MavenDependencyAnalyzer:
         print(f"\nПОРЯДОК ЗАГРУЗКИ ЗАВИСИМОСТЕЙ:")
         for i, pkg in enumerate(load_order, 1):
             print(f"{i}. {pkg}")
-    
-    def run(self):
+
+    def run(self, config_file: str):
         try:
+            print("Этап 4. Дополнительные операции\n")
             
-            config = self.load_config()
+            config = self.load_config(config_file)
             self.validate_config(config)
             self.config = config
+            
+            # Особенности тестового режима
             if config['test_mode'] and not config['repository_url'].startswith(('http://', 'https://')):
-                print(f"\nРЕЖИМ: Тестовый репозиторий из файла")
+                print(f"РЕЖИМ: Тестовый репозиторий из файла")
                 print(f"Файл: {config['repository_url']}")
                 self.load_test_repository()
             elif config['test_mode']:
-                print(f"\nРЕЖИМ: Тестовые данные (встроенные)")
+                print(f"РЕЖИМ: Тестовые данные (встроенные)")
             else:
-                print(f"\nРЕЖИМ: Реальный Maven репозиторий")
+                print(f"РЕЖИМ: Реальный Maven репозиторий")
             
             print(f"\nПОСТРОЕНИЕ ГРАФА ЗАВИСИМОСТЕЙ:")
             dependency_graph = self.build_dependency_graph()
             
+            # ASCII дерево (если включено в конфиге)
             if self.config['ascii_tree'] and dependency_graph:
                 self.print_dependency_tree(dependency_graph)
             elif not dependency_graph:
                 print("Граф зависимостей пуст")
             
+            # Обнаружение циклов
+            cycles = self.detect_cycles(dependency_graph)
+            if cycles:
+                print(f"\nОБНАРУЖЕНЫ ЦИКЛИЧЕСКИЕ ЗАВИСИМОСТИ:")
+                for i, cycle in enumerate(cycles, 1):
+                    print(f"{i}. {' -> '.join(cycle)}")
+            
+            # Порядок загрузки зависимостей
             self.print_load_order()
+            
             
         except KeyboardInterrupt:
             print("\nПрограмма прервана пользователем")
@@ -345,8 +378,14 @@ class MavenDependencyAnalyzer:
             sys.exit(1)
 
 def main():
-    analyzer = MavenDependencyAnalyzer({})
-    analyzer.run()
+    args = parse_arguments()
+    
+    if args.list:
+        list_available_configs()
+        return
+    
+    analyzer = MavenDependencyAnalyzer()
+    analyzer.run(args.config_file)
 
 if __name__ == "__main__":
     main()
